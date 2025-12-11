@@ -1,0 +1,19 @@
+@import './base.css';
+
+:root {
+  --page-bg: #f2f2f2;
+  --card-bg: #ffffff;
+  --text-primary: #161616;
+  --text-muted: #6b6b6b;
+  --shadow-soft: 0 14px 35px rgba(0, 0, 0, 0.08);
+  --radius: 18px;
+}
+
+body {
+  background: var(--page-bg);
+}
+
+#app {
+  min-height: 100vh;
+  background: var(--page-bg);
+}

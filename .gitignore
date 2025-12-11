@@ -1,0 +1,106 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+.eslintcache
+
+# Cypress
+/cypress/videos/
+/cypress/screenshots/
+
+# Vitest
+__screenshots__/
+
+## Build results
+bin/
+obj/
+out/
+debug/
+release/
+
+## Visual Studio cache/options
+.vs/
+*.user
+*.userosscache
+*.suo
+
+## Rider / ReSharper
+.idea/
+*.sln.iml
+
+## Logs
+*.log
+
+## Auto-generated files
+Generated/
+*.generated.cs
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+*.nuspec
+*.psmdcp
+
+# Lock-файл можно коммитить, но если хотите игнорировать — раскомментируйте:
+# packages.lock.json
+
+## Publish output
+publish/
+appsettings.Production.json
+
+## Configuration (если не хотите хранить секреты в репозитории)
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+*.secret.json
+
+## Entity Framework
+Migrations/ (если генерируете заново; обычно наоборот коммитят!)
+
+## Azure / IIS
+*.pubxml
+*.publishsettings
+
+## Temporary files
+*.tmp
+*.temp
+*.bak
+*.cache
+
+## Rider / JetBrains
+/.idea/
+/**/.idea/
+/**/.idea/**
+
+## OS garbage
+.DS_Store
+Thumbs.db
+
+## Tests
+TestResults/
+nunit-*.xml
