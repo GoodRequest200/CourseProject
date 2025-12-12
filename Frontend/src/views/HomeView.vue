@@ -7,11 +7,18 @@ const events = ref([])
 const filtered = ref([])
 const departments = ref([])
 const selectedDept = ref('')
+const searchTerm = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
 const loading = ref(true)
 const error = ref('')
 const defaultImg = ref('')
 const token = ref(localStorage.getItem('token') || '')
 const isAdmin = ref(false)
+
+const apiBase = () =>
+  import.meta.env.VITE_API_BASE_URL ||
+  `${window.location.protocol}//${window.location.hostname}:5000`
 
 const fallback = [
   {
@@ -50,50 +57,71 @@ const loadEvents = async () => {
   loading.value = true
   error.value = ''
 
-  const base =
-    import.meta.env.VITE_API_BASE_URL ||
-    `${window.location.protocol}//${window.location.hostname}:5000`
+  const base = apiBase()
 
-  const toAbsolute = (path) => {
-    const fallbackPath = defaultImg.value || `${base}/images/default.jpg`
-    if (!path) return fallbackPath
+const toAbsolute = (path) => {
+  const fallbackPath = defaultImg.value || `${base}/images/default.jpg`
+  if (!path) return fallbackPath
 
-    const file = path.split(/[/\\]+/).pop() || 'default.jpg'
-    if (/^https?:\/\//i.test(path)) return path
-    return `${base}/images/${file}`
-  }
+  const file = path.split(/[/\\]+/).pop() || 'default.jpg'
+  if (/^https?:\/\//i.test(path)) return path
+  return `${base}/images/${file}`
+}
 
   defaultImg.value = toAbsolute('default.jpg')
 
   try {
     const res = await fetch(`${base}/api/events`)
-    if (!res.ok) throw new Error('Не удалось загрузить события')
+
+    if (!res.ok)
+      throw new Error('Не удалось загрузить события')
+
     const data = await res.json()
     events.value = mapEvents(data, toAbsolute)
-    filtered.value = events.value
+
     const set = new Map()
+
     events.value.forEach((ev) => (ev.departments || []).forEach((d) => set.set(d.id, d.name)))
+
     departments.value = Array.from(set, ([id, name]) => ({ id, name }))
   } catch (err) {
     console.error(err)
     error.value = 'Не удалось загрузить события, показаны заглушки.'
+
     events.value = mapEvents(fallback, toAbsolute)
-    filtered.value = events.value
+
     departments.value = []
   } finally {
+    applyFilter()
     loading.value = false
   }
 }
 
+const normalizeDate = (value) => {
+  if (!value) return null
+  const date = new Date(value)
+  return isNaN(date.getTime()) ? null : date
+}
+
 const applyFilter = () => {
-  if (!selectedDept.value) {
-    filtered.value = events.value
-    return
-  }
-  const id = Number(selectedDept.value)
-  filtered.value = events.value.filter((ev) =>
-    (ev.departments || []).some((d) => d.id === id)
-  )
+  const deptId = selectedDept.value ? Number(selectedDept.value) : null
+  const query = searchTerm.value.trim().toLowerCase()
+  const from = normalizeDate(dateFrom.value)
+  const to = normalizeDate(dateTo.value)
+
+  filtered.value = events.value.filter((ev) => {
+    const matchesDept =
+      !deptId || (ev.departments || []).some((d) => d.id === deptId)
+    const matchesTitle =
+      !query || (ev.title || '').toLowerCase().includes(query)
+
+    const evDate = normalizeDate(ev.eventDate)
+    const matchesFrom = !from || (evDate && evDate >= from)
+    const matchesTo = !to || (evDate && evDate <= to)
+    const matchesDate = matchesFrom && matchesTo
+
+    return matchesDept && matchesTitle && matchesDate
+  })
 }
 
 onMounted(loadEvents)
@@ -114,6 +142,34 @@ const parseRole = () => {
 }
 
 parseRole()
+
+const handleDelete = async (id) => {
+  if (!isAdmin.value || !id) return
+  const confirmDelete = window.confirm('Удалить событие?')
+  if (!confirmDelete) return
+
+  try {
+    const res = await fetch(`${apiBase()}/api/events/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token.value || ''}`,
+      },
+    })
+
+    if (!res.ok) throw new Error('Не удалось удалить событие')
+
+    events.value = events.value.filter((ev) => ev.id !== id)
+    applyFilter()
+  } catch (err) {
+    console.error(err)
+    alert('Ошибка при удалении события')
+  }
+}
+
+const handleDeptClick = (deptId) => {
+  selectedDept.value = String(deptId)
+  applyFilter()
+}
 </script>
 
 <template>
@@ -132,9 +188,28 @@ parseRole()
     <div v-if="loading" class="state">Загрузка...</div>
     <div v-else-if="!events.length" class="state">Пока нет событий</div>
     <div v-else>
-      <div class="filter" v-if="departments.length">
-        <label>
-          Цех:
+      <div class="filters">
+        <label class="field">
+          <span class="label">Поиск</span>
+          <input
+            type="search"
+            v-model="searchTerm"
+            @input="applyFilter"
+            placeholder="Найти мероприятие"
+          />
+        </label>
+        <div class="date-range">
+          <label class="field">
+            <span class="label">С</span>
+            <input type="date" v-model="dateFrom" @change="applyFilter" />
+          </label>
+          <label class="field">
+            <span class="label">По</span>
+            <input type="date" v-model="dateTo" @change="applyFilter" />
+          </label>
+        </div>
+        <label class="field" v-if="departments.length">
+          <span class="label">Отдел</span>
           <select v-model="selectedDept" @change="applyFilter">
             <option value="">Все</option>
             <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
@@ -142,7 +217,15 @@ parseRole()
         </label>
       </div>
       <div class="grid">
-        <EventCard v-for="e in filtered" :key="e.id" :event="e" :fallback="defaultImg" />
+        <EventCard
+          v-for="e in filtered"
+          :key="e.id"
+          :event="e"
+          :fallback="defaultImg"
+          :can-delete="isAdmin"
+          @delete="handleDelete"
+          @filter-dept="handleDeptClick"
+        />
       </div>
     </div>
 
@@ -214,17 +297,46 @@ h1 {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
 }
 
-.filter {
+.filters {
   margin: 12px 0 16px;
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: end;
 }
 
-.filter select {
-  margin-left: 8px;
-  padding: 8px 10px;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  color: #555;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.field input,
+.field select {
+  padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid #d8d8d8;
+  background: #fff;
+  font-size: 0.95rem;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: #3f51b5;
+  box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.12);
+}
+
+.date-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .grid {
